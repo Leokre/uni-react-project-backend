@@ -27,6 +27,16 @@ const frontEnd = "http://localhost:3000"
 
 
 */
+
+
+
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, x-access-token");
+  next();
+});
+
+
 app.use(session({
 secret: jwtKey,
 resave: false,
@@ -35,6 +45,8 @@ saveUninitialized: false
 
 
 }));
+
+
 
 
 app.use(function(req, res, next) {
@@ -83,7 +95,8 @@ app.get("/getUsers",async (req,res) =>{
 })
 
 const verifyJWT = (req,res,next) => {
-  const token = req.headers["x-access-token"]
+  const authHeader = req.headers["x-access-token"]
+  const token = authHeader && authHeader.split(' ')[1]
   if(!token){
     res.send("NOTOKEN")
   }else{
@@ -117,8 +130,13 @@ app.post("/Login", (req,res) => {
           if(password === result[0].Password){
             const id = result.id
             const token = jwt.sign({id},jwtKey,{expiresIn: 300})
-            req.session.user = result
-            res.json({auth: true, token: token, result: result})
+            //req.session.user = result
+            //res.json({auth: true, token: token, result: result})
+            res.status(202)
+               .cookie(true, token, result,{sameSite: 'strict',
+            path: '/',
+            expires: new Date(new Date().getTime() + 100 * 1000),
+                  httpOnly: true}).send("cookie being initialized")
             //res.send({message: "SUCCESS" + "    Username: " + username + " Password: " + password});
             //res.send()
           }else{
