@@ -9,8 +9,7 @@ const cookieParser = require("cookie-parser")
 1. Password encryption
 2. Change JWT key
 
-4. sendMessage 
-5. getChatLog 
+
 
 
 
@@ -260,7 +259,24 @@ await db.promise().query("SELECT * FROM SESSIONS WHERE idSession='" + sessionID 
 
   //Get all Users in Session
 app.get("/Session/getUsers",authenticateToken,async (req,res) =>{
-  const results = await db.promise().query("Select SessionID, GruppenID,Berechtigung,UserID,Username FROM GroupUserSession NATURAL JOIN Users WHERE SessionID =" + req.body.sessionID + " and UserID =idUser ORDER BY GruppenID")
+  const sessID = req.body.sessionID
+  const userID = req.user.id
+
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + ";")
+  if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION")
+  results = await db.promise().query("Select SessionID, GruppenID,Berechtigung,UserID,Username FROM GroupUserSession NATURAL JOIN Users WHERE SessionID =" + sessID + " and UserID =idUser ORDER BY GruppenID")
+  res.send(results[0])
+})
+
+app.get("/Session/Group/getUsers",authenticateToken,async (req,res) =>{
+  const userID = req.user.id
+  const groupID = req.groupID
+  const sessID = req.body.sessionID
+
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0) ;")
+  if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
+
+  results = await db.promise().query("Select SessionID, GruppenID,Berechtigung,UserID,Username FROM GroupUserSession NATURAL JOIN Users WHERE SessionID =" + req.body.sessionID + " and UserID =idUser and GruppenID = " + groupID + " ORDER BY Username")
   res.send(results[0])
 })
 
@@ -290,6 +306,46 @@ app.post("/addUser",async (req,res,next) =>{
  
   
 
+})
+
+app.post("/Session/sendMessage",authenticateToken,async (req,res,next) =>{
+  
+   const message = req.body.message
+   const userID = req.user.id
+   const sessID = req.body.sessionID
+   const groupID = req.body.groupID
+   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0) ;")
+  if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
+
+
+  if(!message)res.send("ERR_NO_MESSAGE")
+   
+   
+        
+         db.promise().query("INSERT INTO Messages(MessTimestamp,idUser,SessionID,GruppenID,Message) VALUES('" + now + "', " + userID + ", " + sessID + ", " + groupID + ", '" + message + "')").then(function (result) {
+           res.status(201).send("MESSAGE_SENT")
+         })
+         .catch(next);
+ 
+
+ })
+
+
+ app.get("/Session/getMessageLog",authenticateToken,async (req,res) =>{
+  const userID = req.user.id
+  const sessID = req.body.sessionID
+  const groupID = req.body.groupID
+
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0);")
+  if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
+
+
+  results = await db.promise().query("Select Username,Message,MessTimestamp from Messages NATURAL JOIN Users WHERE SessionID = " + sessID + " AND GruppenID = " + groupID + " AND idUser = idUser ORDER BY MessTimestamp;")
+  res.send(results[0])
+
+  
 })
 
 app.use(function (err, req, res, next) {
