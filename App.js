@@ -4,11 +4,10 @@ const port = process.env.PORT || 5000
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
 
-
 /*    TODO
 1. Password encryption
 2. Change JWT key
-
+3. Implement socket for chat
 
 
 
@@ -35,6 +34,7 @@ const db = require("./Database")
 const jwt = require("jsonwebtoken")
 const jwtKey = "CHANGEMEIMNOTSECURE"
 const frontEnd = "http://localhost:3000"
+const cBackend = "http://localhost:5001"
 const defaultQuickReplies = "Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5"
 
 
@@ -308,6 +308,27 @@ app.post("/addUser",async (req,res,next) =>{
 
 })
 
+async function sendMessage(msg,usID,seID,gID){
+  const message = req.body.message
+  const userID = req.user.id
+  const sessID = req.body.sessionID
+  const groupID = req.body.groupID
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+ var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0) ;")
+ if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
+
+
+ if(!message)res.send("ERR_NO_MESSAGE")
+  
+  
+       
+        db.promise().query("INSERT INTO Messages(MessTimestamp,idUser,SessionID,GruppenID,Message) VALUES('" + now + "', " + userID + ", " + sessID + ", " + groupID + ", '" + message + "')").then(function (result) {
+          res.status(201).send("MESSAGE_SENT")
+        })
+        .catch(next);
+}
+
 app.post("/Session/sendMessage",authenticateToken,async (req,res,next) =>{
   
    const message = req.body.message
@@ -352,7 +373,55 @@ app.use(function (err, req, res, next) {
   res.send(err.code)
 })
 
+var chatServer = require('http').createServer(app);
+var io = require('socket.io')(chatServer);
+chatServer.listen(Number(port+1),()=>{
+  console.log("chatServer running on Port: " + Number(port+1))
+})
 
+
+io.on('connection', authenticateToken,function (socket) {
+  // Die variable "socket" repräsentiert die aktuelle Web Sockets
+  // Verbindung zu jeweiligen Browser client.
+    console.log("User connecting")
+  // Kennzeichen, ob der Benutzer sich angemeldet hat 
+  var addedUser = false;
+  
+  socket.username = req.user.name;
+  socket.userID = req.user.id;
+  addedUser = true;
+      
+  // Dem Client wird die "login"-Nachricht geschickt, damit er weiß,
+  // dass er erfolgreich angemeldet wurde.
+  socket.emit('login');
+      
+  // Alle Clients informieren, dass ein neuer Benutzer da ist.
+  socket.broadcast.emit('user joined', socket.username);
+ 
+  
+  // Funktion, die darauf reagiert, wenn ein Benutzer eine Nachricht schickt
+  socket.on('new message', function (data) {
+  // Sende die Nachricht an alle Clients
+  socket.broadcast.emit('new message', {
+    username: socket.username,
+    message: data.msg,
+    sessionID: data.sessID,
+    groupID: data.groupID
+  });
+
+  sendMessage(data.msg,socket.userID,data.sessID,data.groupID);
+  });
+  
+  // Funktion, die darauf reagiert, wenn sich ein Benutzer abmeldet.
+  // Benutzer müssen sich nicht explizit abmelden. "disconnect"
+  // tritt auch auf wenn der Benutzer den Client einfach schließt.
+  socket.on('disconnect', function () {
+  if (addedUser) {
+    // Alle über den Abgang des Benutzers informieren
+    socket.broadcast.emit('user left', socket.username);
+  }
+  });
+  });
 
 
 app.listen(port, () => {
