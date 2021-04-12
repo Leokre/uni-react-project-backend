@@ -1,6 +1,7 @@
 const express = require('express')
 const app = express()
 const port = process.env.PORT || 5000
+port2 = 5001
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
 
@@ -36,7 +37,8 @@ const jwtKey = "CHANGEMEIMNOTSECURE"
 const frontEnd = "http://localhost:3000"
 const cBackend = "http://localhost:5001"
 const defaultQuickReplies = "Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5"
-
+var cookie = require('cookie')
+var chatRooms =[]
 
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", frontEnd);
@@ -50,10 +52,11 @@ app.use(function(req, res, next) {
 
 function authenticateToken(req,res,next){
   //const authHeader = req.headers['authorization']
+  if(req == null || req.cookies == undefined) return 
   const token = req.cookies['accessToken']
   console.log("Token: " + token)
  // if(token == null) return res.sendStatus(401)
-  if(token == null) return res.send("NO_TOKEN")
+  if(token == null || req.cookies == undefined) return res.send("NO_TOKEN")
   jwt.verify(token, jwtKey,(err,user)=>{
     //if(err) return res.sendStatus(403)
     if(err) return res.send("WRONG_TOKEN")
@@ -273,7 +276,7 @@ app.get("/Session/Group/getUsers",authenticateToken,async (req,res) =>{
   const groupID = req.groupID
   const sessID = req.body.sessionID
 
-  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0) ;")
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= (" + groupID + " OR " + 0 +") OR Berechtigung > 0) ;")
   if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
 
   results = await db.promise().query("Select SessionID, GruppenID,Berechtigung,UserID,Username FROM GroupUserSession NATURAL JOIN Users WHERE SessionID =" + req.body.sessionID + " and UserID =idUser and GruppenID = " + groupID + " ORDER BY Username")
@@ -309,24 +312,24 @@ app.post("/addUser",async (req,res,next) =>{
 })
 
 async function sendMessage(msg,usID,seID,gID){
-  const message = req.body.message
-  const userID = req.user.id
-  const sessID = req.body.sessionID
-  const groupID = req.body.groupID
+  const message = msg
+  const userID = usID
+  const sessID = seID
+  const groupID = gID
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0) ;")
- if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
+ if(!results[0][0])return"ERR_USER_NOT_IN_SESSION/GROUP"
 
 
- if(!message)res.send("ERR_NO_MESSAGE")
+ if(!message)return"ERR_NO_MESSAGE"
   
   
        
         db.promise().query("INSERT INTO Messages(MessTimestamp,idUser,SessionID,GruppenID,Message) VALUES('" + now + "', " + userID + ", " + sessID + ", " + groupID + ", '" + message + "')").then(function (result) {
-          res.status(201).send("MESSAGE_SENT")
+          return"MESSAGE_SENT"
         })
-        .catch(next);
+        
 }
 
 app.post("/Session/sendMessage",authenticateToken,async (req,res,next) =>{
@@ -354,20 +357,39 @@ app.post("/Session/sendMessage",authenticateToken,async (req,res,next) =>{
  })
 
 
- app.get("/Session/getMessageLog",authenticateToken,async (req,res) =>{
+ app.post("/Session/getMessageLog",authenticateToken,async (req,res) =>{
   const userID = req.user.id
   const sessID = req.body.sessionID
   const groupID = req.body.groupID
+  console.log("getMessageLog triggered")
+  console.log("userID: " + userID)
+  console.log("sessID: " + sessID)
+  console.log("groupID: " + groupID)
 
-  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0);")
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= (" + groupID + " OR " + 0 + ") OR Berechtigung > 0);")
   if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
 
 
-  results = await db.promise().query("Select Username,Message,MessTimestamp from Messages NATURAL JOIN Users WHERE SessionID = " + sessID + " AND GruppenID = " + groupID + " AND idUser = idUser ORDER BY MessTimestamp;")
+  results = await db.promise().query("Select Username,Message,MessTimestamp,MessageID from Messages NATURAL JOIN Users WHERE SessionID = " + sessID + " AND GruppenID = " + groupID + " AND idUser = idUser ORDER BY MessTimestamp;")
   res.send(results[0])
 
   
 })
+
+app.post("/Session/getUserGroups",authenticateToken,async (req,res) =>{
+  const userID = req.user.id
+  const sessID = req.body.sessionID
+  console.log("getUserGroups triggered" + " userID: " + userID  + " sessID: " + sessID )
+  var results = await db.promise().query("SELECT SessionID,GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND (UserID= " + userID + " OR Berechtigung>0);")
+  if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
+
+  console.log(results[0])
+  
+   res.send(results[0])
+
+  
+})
+
 
 app.use(function (err, req, res, next) {
   res.send(err.code)
@@ -375,42 +397,116 @@ app.use(function (err, req, res, next) {
 
 var chatServer = require('http').createServer(app);
 var io = require('socket.io')(chatServer);
-chatServer.listen(Number(port+1),()=>{
-  console.log("chatServer running on Port: " + Number(port+1))
+
+
+chatServer.listen(port2,()=>{
+  console.log("chatServer running on Port: " + port2)
 })
 
 
-io.on('connection', authenticateToken,function (socket) {
+async function addUser(socket,userID,sessID,groupID){
+  console.log("addUser triggered")
+  console.log("userID: " + userID)
+  console.log("sessID: " + sessID)
+  console.log("groupID: " + groupID)
+  await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= (" + groupID + " OR " + 0 + ") OR Berechtigung > 0);")
+  .then((results)=>{
+    if(!results[0][0])return-1
+
+    socket.currentRoom = (sessID+"GG"+groupID)
+    socket.join(socket.currentRoom)
+    return socket.currentRoom
+
+  })
+  
+ 
+
+
+}
+
+
+async function getGroups(userID,sessID){
+  console.log("getUserGroups triggered" + " userID: " + userID  + " sessID: " + sessID )
+  var results = await db.promise().query("SELECT GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND (UserID= " + userID + " OR Berechtigung>0 OR GruppenID=0);")
+  if(!results[0][0])return"ERR_USER_NOT_IN_SESSION/GROUP"
+
+  console.log(results[0][0])
+   return results[0][0]
+
+
+}
+
+io.on('connection',function (socket) {
   // Die variable "socket" repräsentiert die aktuelle Web Sockets
   // Verbindung zu jeweiligen Browser client.
     console.log("User connecting")
   // Kennzeichen, ob der Benutzer sich angemeldet hat 
+
+  if(!socket.handshake.headers.cookie) return -1
+  var cookies = cookie.parse(socket.handshake.headers.cookie);
+  var currUser;
+  var token = cookies.accessToken
+
+  jwt.verify(token, jwtKey,(err,user)=>{
+    //if(err) return res.sendStatus(403)
+    if(err) return res.send("WRONG_TOKEN")
+    currUser = user
+  })
+  if(currUser == undefined) console.log("NO_TOKEN")
+
+
   var addedUser = false;
-  
-  socket.username = req.user.name;
-  socket.userID = req.user.id;
+  socket.username = currUser.name;
+  socket.userID = currUser.id;
   addedUser = true;
       
   // Dem Client wird die "login"-Nachricht geschickt, damit er weiß,
   // dass er erfolgreich angemeldet wurde.
   socket.emit('login');
-      
+  console.log("User connected")    
   // Alle Clients informieren, dass ein neuer Benutzer da ist.
-  socket.broadcast.emit('user joined', socket.username);
+  //socket.broadcast.emit('user joined', socket.username);
  
   
+ 
+
+
   // Funktion, die darauf reagiert, wenn ein Benutzer eine Nachricht schickt
-  socket.on('new message', function (data) {
+  socket.on('newMessage', function (data) {
+    const username = socket.username
+    const userID = socket.userID
+    const sessionID = socket.currentRoom.split('GG')[0]
+    const groupID = socket.currentRoom.split('GG')[1]
   // Sende die Nachricht an alle Clients
-  socket.broadcast.emit('new message', {
-    username: socket.username,
+  io.to(socket.currentRoom).emit('newMessage', {
+    username: username,
     message: data.msg,
-    sessionID: data.sessID,
-    groupID: data.groupID
+    time: new Date().toISOString().slice(0, 19).replace('T', ' ')
   });
 
-  sendMessage(data.msg,socket.userID,data.sessID,data.groupID);
+  sendMessage(data.msg,userID,sessionID,groupID);
   });
+
+  
+
+
+  socket.on('joinChat',function (data){
+    console.log("JOINCHAT TRIGGERED")
+    console.log(data)
+    var rooms = io.sockets.adapter.sids[socket.id]; for(var room in rooms) {socket.leave(room)} 
+
+    addUser(socket,socket.userID,data.sessID,data.groupID)
+
+
+
+  })
+
+  socket.on('getCurrentRoom',function (data){
+    socket.emit('serverMessage',"UserID :" + socket.userID +" | socket.currentRoom = " + socket.currentRoom)
+    console.log(socket.rooms)
+  })
+
+  
   
   // Funktion, die darauf reagiert, wenn sich ein Benutzer abmeldet.
   // Benutzer müssen sich nicht explizit abmelden. "disconnect"
