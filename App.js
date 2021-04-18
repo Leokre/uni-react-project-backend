@@ -224,7 +224,7 @@ app.post("/Session/addUser",authenticateToken,async (req,res,next)=>{
 
 
   
-   console.log("AAAAAAAAAA")
+  
     
 
     await db.promise().query("SELECT * FROM SESSIONS WHERE InvitationCode='" + inviteCode + "';").then(function (result) {
