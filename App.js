@@ -3,6 +3,7 @@ const app = express()
 const port = process.env.PORT || 5000
 port2 = 5001
 const cors = require("cors")
+const crypto = require("crypto");
 const cookieParser = require("cookie-parser")
 
 /*    TODO
@@ -68,6 +69,10 @@ function authenticateToken(req,res,next){
 
 
 
+
+
+
+
 app.get("/checkAuth",authenticateToken,(req,res)=>{
 
 res.json({auth:true,user:req.user})
@@ -91,7 +96,7 @@ app.post("/Login", (req,res) => {
                .cookie("accessToken", accessToken,{sameSite: 'strict',
             path: '/',
             expires: new Date(new Date().getTime() + 100000000 * 1000),
-                  httpOnly: true}).send("cookie being initialized")
+                  httpOnly: true}).send({auth: true, msg: "CookieInitializing"})
           }else{
             res.json({auth: false, msg: "UserNamePasswordError"})
           }
@@ -124,21 +129,41 @@ app.post("/addSession",authenticateToken,(req,res,next)=>{
 const sessName = req.body.sessionName
 const sessTopic = req.body.sessionTopic
 
-if(!sessName)res.status(201).send({msg: "NO_SESSION_NAME"})
-if(!sessTopic)res.status(201).send({msg: "NO_SESSION_TOPIC"})
+
+
+if(!sessName) return res.status(201).send({msg: "NO_SESSION_NAME"}) 
+if(!sessTopic)return res.status(201).send({msg: "NO_SESSION_TOPIC"})
 
 const userID = req.user.id
-/*
-console.log("UserID: " +userID)
-console.log("sessName: " +sessName)
-console.log("sessTopic: " +sessTopic)
-*/
-db.promise().query("INSERT INTO Sessions(SessionName,SessionThema,SessionHost) VALUES('" + sessName + "','" + sessTopic +"'," + userID + ")").then(function (result) {
-  res.status(201).send({msg: "Created Session"})
+
+crypto.randomBytes(48, function(err, buffer) {
+  var key = buffer.toString('base64');
+  // then save the key with the new user in the database
+  db.promise().query("INSERT INTO Sessions(SessionName,SessionThema,SessionHost,InvitationCode) VALUES('" + sessName + "','" + sessTopic +"'," + userID + ",'" + key + "')").then(function (result) {
+    res.status(201).send({msg: "SESSION_CREATE_SUCCESS"})
+  })
+  .catch(next);
+  
 })
-.catch(next);
+
+
+
 
 })
+
+app.get("/getUserSessions",authenticateToken,async (req,res) =>{
+  const userID = req.user.id
+  console.log("getUserSessions triggered" + " userID: " + userID)
+  var results = await db.promise().query("SELECT DISTINCT SessionID,SessionName,SessionThema,Berechtigung FROM Sessions NATURAL JOIN GroupUserSession WHERE idSession=SessionID AND UserID= " + userID + "")
+ 
+
+  console.log(results[0])
+  
+   res.send(results[0])
+
+  
+})
+
 
 app.post("/setQuickReplies",authenticateToken,(req,res,next)=>{
   console.log(req.body)
@@ -182,42 +207,37 @@ app.post("/setQuickReplies",authenticateToken,(req,res,next)=>{
 
 
 app.post("/Session/addUser",authenticateToken,async (req,res,next)=>{
-  const sessName = req.body.sessionName
-  const user = req.body.targetName
-  const groupID = req.body.groupID
-  const rights = req.body.authority
-  if(!sessName)res.status(201).send("NO_SESSION_NAME")
-  if(!user)res.status(201).send("NO_USER")
-  if(!groupID)res.status(201).send("NO_GROUP_SET")
-  if(!rights)rights = 0
+
+  console.log("Session/addUser triggered")
+  const inviteCode = req.body.inviteCode
+  const userID = req.user.id
+  const groupID = 0
+  const rights = 0
+  console.log("inviteCode: " + inviteCode)
+  if(!inviteCode)res.status(201).send("NO_INVITE_CODE")
   
-  var userID = undefined
+
   var sessionID = undefined
  
-  console.log("User: " + user)
-  console.log("sessName: " + sessName)
-  console.log("groupID: " + groupID)
-  console.log("rights: " + rights)
+
+
 
 
   
-    await db.promise().query("SELECT * FROM USERS WHERE USERNAME='" + user + "';").then(function (result) {
-      userID = result[0][0].idUser
-      console.log("userID: " + userID)
-    })
-    .catch(next);
+   console.log("AAAAAAAAAA")
     
 
-    await db.promise().query("SELECT * FROM SESSIONS WHERE SessionName='" + sessName + "' and SessionHost= " + req.user.id + ";").then(function (result) {
+    await db.promise().query("SELECT * FROM SESSIONS WHERE InvitationCode='" + inviteCode + "';").then(function (result) {
       sessionID = result[0][0].idSession
       console.log("sessionID: " + sessionID)
     })
     .catch(next);
-  
 
-  
 
-  if(!userID || !sessionID)res.status(201).send("WRONG_USER_SESSNAME")
+  if(!sessionID) res.send("WRONG_INVITE_CODE")
+
+
+ 
 
   db.query(
     "INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES (" + groupID + "," + sessionID + "," + userID + "," + rights + ");",
@@ -298,7 +318,7 @@ app.post("/addUser",async (req,res,next) =>{
         .catch(next);
 
     }
-    if(username && !password){
+    if(user && !pass){
       db.promise().query("INSERT INTO USERS(Username,defaultQuickReplies) VALUES('" + user + "','" + defaultQuickReplies + "')").then(function (result) {
         res.status(201).send("USER_CREATED")
       })
@@ -366,7 +386,7 @@ app.post("/Session/sendMessage",authenticateToken,async (req,res,next) =>{
   console.log("sessID: " + sessID)
   console.log("groupID: " + groupID)
 
-  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= (" + groupID + " OR " + 0 + ") OR Berechtigung > 0);")
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0);")
   if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
 
 
@@ -380,7 +400,7 @@ app.post("/Session/getUserGroups",authenticateToken,async (req,res) =>{
   const userID = req.user.id
   const sessID = req.body.sessionID
   console.log("getUserGroups triggered" + " userID: " + userID  + " sessID: " + sessID )
-  var results = await db.promise().query("SELECT SessionID,GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND (UserID= " + userID + " OR Berechtigung>0);")
+  var results = await db.promise().query("SELECT DISTINCT SessionID,GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND (UserID= " + userID + " OR Berechtigung>0);")
   if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
 
   console.log(results[0])
@@ -403,6 +423,19 @@ chatServer.listen(port2,()=>{
   console.log("chatServer running on Port: " + port2)
 })
 
+
+
+
+function constantTimeEquals(a, b) {
+    if (a.length !== b.length) {
+        return false;
+    }
+    let diff = 0;
+    for (let i = 0; diff < a.length; i++) {
+        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return diff === 0;
+}
 
 async function addUser(socket,userID,sessID,groupID){
   console.log("addUser triggered")
