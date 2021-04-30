@@ -123,6 +123,58 @@ app.get("/Logout",(req,res)=>{
 })
 
 
+const genInvCode = () =>{
+  var key = crypto.randomBytes(32).toString('base64')
+
+  return key
+ 
+  
+}
+
+app.post("/getInvCode",authenticateToken,async(req,res,next)=>{
+  const userID = req.user.id
+  const sessionID = req.body.sessionID
+
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessionID + " AND Berechtigung > 0 ;")
+  if(!results[0][0])res.send({msg:"NEED_ADMIN_ACCESS"})
+
+  results = await db.promise().query("Select InvitationCode FROM Sessions WHERE idSession =" + sessionID + "")
+  res.send(results[0][0])
+  
+
+
+})
+
+app.post("/Session/changeRole",authenticateToken,async(req,res,next)=>{
+  const userID = req.user.id
+  const sessionID = req.body.sessionID
+  const targetID = req.body.userID
+
+  await db.promise().query("CALL changeRole(" + sessionID + "," + userID + "," + targetID + ")").then(function (result) {
+    res.status(201).send({msg:"UPDATE_SUCCESS"})
+  })
+  .catch(next);
+  
+
+
+})
+
+
+app.post("/genInvCode",authenticateToken,async(req,res,next)=>{
+  const userID = req.user.id
+  const sessionID = req.body.sessionID
+
+  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessionID + " AND Berechtigung > 0 ;")
+  if(!results[0][0])res.send({msg:"NEED_ADMIN_ACCESS"})
+  
+  let invCode= genInvCode()
+  db.promise().query("UPDATE Sessions SET InvitationCode='" + invCode + "' WHERE idSession=" + sessionID + "").then(function (result) {
+    res.status(201).send({msg:"UPDATE_SUCCESS",InvitationCode: invCode})
+  })
+  .catch(next);
+
+
+})
 
 
 app.post("/addSession",authenticateToken,(req,res,next)=>{
@@ -136,15 +188,17 @@ if(!sessTopic)return res.status(201).send({msg: "NO_SESSION_TOPIC"})
 
 const userID = req.user.id
 
-crypto.randomBytes(48, function(err, buffer) {
-  var key = buffer.toString('base64');
+console.log("InvCode: " + genInvCode())
+
+
+  var key = genInvCode();
   // then save the key with the new user in the database
   db.promise().query("INSERT INTO Sessions(SessionName,SessionThema,SessionHost,InvitationCode) VALUES('" + sessName + "','" + sessTopic +"'," + userID + ",'" + key + "')").then(function (result) {
     res.status(201).send({msg: "SESSION_CREATE_SUCCESS"})
   })
   .catch(next);
   
-})
+
 
 
 
@@ -166,10 +220,11 @@ app.get("/getUserSessions",authenticateToken,async (req,res) =>{
 
 
 app.post("/setQuickReplies",authenticateToken,(req,res,next)=>{
+  console.log("setQuickReplies triggered!")
   console.log(req.body)
   const quickReplies = req.body.quickReplies
   
-  if(!quickReplies)res.status(201).send({msg: "QUICK REPLIES EMPTY"})
+  if(!quickReplies)res.status(201).send({msg: "ERR_INPUT_EMPTY"})
   
   const userID = req.user.id
   /*
@@ -281,7 +336,7 @@ await db.promise().query("SELECT * FROM SESSIONS WHERE idSession='" + sessionID 
  
 
   //Get all Users in Session
-app.get("/Session/getUsers",authenticateToken,async (req,res) =>{
+app.post("/Session/getUsers",authenticateToken,async (req,res) =>{
   const sessID = req.body.sessionID
   const userID = req.user.id
 
@@ -404,6 +459,85 @@ app.post("/Session/getUserGroups",authenticateToken,async (req,res) =>{
   if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
 
   console.log(results[0])
+
+   res.send(results[0])
+
+  
+})
+
+app.post("/Session/getOtherUserGroups",authenticateToken,async (req,res) =>{
+  const userID = req.body.userID
+  const sessID = req.body.sessionID
+  console.log("getOtherUserGroups triggered" + " userID: " + userID  + " sessID: " + sessID )
+  var results = await db.promise().query("SELECT DISTINCT SessionID,GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND UserID= " + userID + " ;")
+  if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
+  console.log(results[0])
+  results[0].forEach(element =>{
+    console.log("Element: " + element.GruppenID)
+    if(element.GruppenID == 0){
+      const index = results[0].indexOf(element)
+      if(index > -1) return results[0].splice(index, 1)
+    }
+  })
+   res.send(results[0])
+
+  
+})
+
+app.post("/Session/getGroups",authenticateToken,async (req,res) =>{
+  const userID = req.user.id
+  const sessID = req.body.sessionID
+  console.log("getGroups triggered" + " sessID: " + sessID )
+  var results = await db.promise().query("SELECT DISTINCT GruppenID from GroupUserSession WHERE SessionID= " + sessID + ";")
+  if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
+
+  console.log(results[0])
+  results[0].forEach(element =>{
+    console.log("Element: " + element.GruppenID)
+    if(element.GruppenID == 0){
+      const index = results[0].indexOf(element)
+      if(index > -1) return results[0].splice(index, 1)
+    }
+  })
+   res.send(results[0])
+
+  
+})
+
+
+
+app.post("/Session/addGroup",authenticateToken,async (req,res) =>{
+  const userID = req.user.id
+  const sessID = req.body.sessionID
+  console.log("addGroup triggered" + " sessID: " + sessID )
+  var results = await db.promise().query("SELECT GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND UserID = " + userID + " AND Berechtigung >0;")
+  if(!results[0][0])res.send({msg: "ERR_NO_ADMIN_PERMISSION"})
+
+  var results = await db.promise().query("SELECT DISTINCT GruppenID from GroupUserSession WHERE SessionID= " + sessID + " ORDER BY GruppenID DESC;")
+   let newGroupID = results[0][0].GruppenID+1
+
+   db.promise().query("INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES (" + newGroupID + "," + sessID + "," + userID + "," + 2 + ")").then(function (result) {
+    res.status(201).send({msg: "GROUP_CREATE_SUCCESS"})
+  })
+  .catch(next);
+
+  
+  
+   
+
+  
+})
+
+app.post("/Session/sendInfoRequest",authenticateToken,async (req,res) =>{
+  const userID = req.user.id
+  const sessID = req.body.sessionID
+  console.log("sendInfoRequest triggered" + " sessID: " + sessID )
+  var results = await db.promise().query("SELECT GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND UserID = " + userID + " AND Berechtigung >0;")
+  if(!results[0][0])res.send({msg: "ERR_NO_HOST_PERMISSION"})
+
+   results = await db.promise().query("INSERT INTO GroupUserSession;")
+
+  console.log(results[0])
   
    res.send(results[0])
 
@@ -458,16 +592,48 @@ async function addUser(socket,userID,sessID,groupID){
 }
 
 
-async function getGroups(userID,sessID){
-  console.log("getUserGroups triggered" + " userID: " + userID  + " sessID: " + sessID )
-  var results = await db.promise().query("SELECT GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND (UserID= " + userID + " OR Berechtigung>0 OR GruppenID=0);")
-  if(!results[0][0])return"ERR_USER_NOT_IN_SESSION/GROUP"
-
-  console.log(results[0][0])
-   return results[0][0]
 
 
-}
+app.post("/Session/setUserGroups",authenticateToken,async(req,res,next)=>{
+  const sessionID = req.body.sessionID
+  const userID = req.body.targetID
+  const groups = JSON.parse(req.body.groups)
+  console.log("groups")
+  console.log(groups)
+  var role = 0
+  console.log("sessionID: " + sessionID)
+  console.log("targetID: " + userID)
+  console.log("req.user.id: " + req.user.id)
+  
+  db.promise().query("DELETE FROM GroupUserSession WHERE SessionID = " + sessionID + " AND UserID=" + userID +" AND GruppenID <> 0").then(function (result) {
+      
+  })
+  .catch(next);
+
+  groups.forEach(element =>{
+    console.log("element:")
+    console.log(element)
+    db.promise().query("SELECT Berechtigung FROM GroupUserSession WHERE SessionID = " + sessionID + " AND UserID=" + userID + " AND GruppenID = 0").then(function (result) {
+      console.log("setusergorupseee")
+      console.log(result[0][0].Berechtigung)
+      role=result[0][0].Berechtigung
+
+
+      db.promise().query("INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES (" + element + "," + sessionID + "," + userID + "," + role + ")").then(function (result) {
+      
+      })
+      .catch(next);
+    })
+    .catch(next);
+
+
+    
+  })
+  
+
+
+
+})
 
 io.on('connection',function (socket) {
   // Die variable "socket" repräsentiert die aktuelle Web Sockets
@@ -520,6 +686,28 @@ io.on('connection',function (socket) {
   sendMessage(data.msg,userID,sessionID,groupID);
   });
 
+
+  socket.on('infoRequest', function (data) {
+    const username = socket.username
+    const userID = socket.userID
+    const sessionID = socket.currentRoom.split('GG')[0]
+    const groupID = socket.currentRoom.split('GG')[1]
+  // Sende die Nachricht an alle Clients
+
+  var rooms = io.sockets.adapter.sids[socket.id]; for(var room in rooms) 
+  {
+    room.emit('newMessage', {
+    username: username,
+    message: data.msg,
+    time: new Date().toISOString().slice(0, 19).replace('T', ' ')
+    })
+
+    sendMessage(data.msg,userID,sessionID,groupID);
+  } 
+
+
+  
+  });
   
 
 
