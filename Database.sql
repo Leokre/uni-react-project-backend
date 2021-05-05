@@ -153,8 +153,13 @@ create TRIGGER  Archivieren_Insert after insert on Sessions
     INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(0,1,2,0);
     INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(1,1,3,0);
     INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(2,1,4,0);
-    
-   /* 
+   
+   INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(0,1,3,0);
+   INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(0,1,4,0);
+   INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(1,1,1,2);
+   INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(2,1,1,2);
+       /* 
+
     
     INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(0,1,2,0);
     INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES(0,1,3,0);

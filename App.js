@@ -35,6 +35,7 @@ app.use(cookieParser())
 const db = require("./Database")
 const jwt = require("jsonwebtoken")
 const jwtKey = "CHANGEMEIMNOTSECURE"
+//const frontEnd = "http://192.168.178.29"
 const frontEnd = "http://localhost:3000"
 const cBackend = "http://localhost:5001"
 const defaultQuickReplies = "Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5"
@@ -455,7 +456,7 @@ app.post("/Session/getUserGroups",authenticateToken,async (req,res) =>{
   const userID = req.user.id
   const sessID = req.body.sessionID
   console.log("getUserGroups triggered" + " userID: " + userID  + " sessID: " + sessID )
-  var results = await db.promise().query("SELECT DISTINCT SessionID,GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND (UserID= " + userID + " OR Berechtigung>0);")
+  var results = await db.promise().query("SELECT DISTINCT SessionID,GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND UserID= " + userID + ";")
   if(!results[0][0])res.send("ERR_USER_NOT_IN_SESSION/GROUP")
 
   console.log(results[0])
@@ -741,6 +742,6 @@ io.on('connection',function (socket) {
   });
 
 
-app.listen(port, () => {
+app.listen(port,'0.0.0.0', () => {
   console.log(`Example app listening at http://localhost:${port}`)
 })
