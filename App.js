@@ -518,14 +518,24 @@ app.post("/Session/addGroup",authenticateToken,async (req,res) =>{
    let newGroupID = results[0][0].GruppenID+1
 
    db.promise().query("INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES (" + newGroupID + "," + sessID + "," + userID + "," + 2 + ")").then(function (result) {
-    res.status(201).send({msg: "GROUP_CREATE_SUCCESS"})
+    res.status(201).send({msg: "GROUP_CREATE_SUCCESS", id: newGroupID})
   })
   .catch(next);
+  
+})
 
-  
-  
+app.post("/Session/deleteGroup",authenticateToken,async (req,res) =>{
+  const userID = req.user.id
+  const sessID = req.body.sessionID
+  const groupID = req.body.groupID
+  console.log("deleteGroup triggered" + " sessID: " + sessID +"groupID: " + groupID)
+  var results = await db.promise().query("SELECT GruppenID from GroupUserSession WHERE SessionID= " + sessID + " AND UserID = " + userID + " AND Berechtigung >0;")
+  if(!results[0][0])res.send({msg: "ERR_NO_ADMIN_PERMISSION"})
+
    
-
+   db.promise().query("DELETE FROM GroupUserSession WHERE GruppenID = " + groupID +";").then(function (result) {
+    res.status(201).send({msg: "DELETE_GROUP_SUCCESS"})
+  })
   
 })
 
