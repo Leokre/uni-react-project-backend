@@ -11,7 +11,7 @@ DROP PROCEDURE IF EXISTS changeRole;
 CREATE TABLE IF NOT EXISTS Users (
   idUser INT NOT NULL AUTO_INCREMENT,
   Username VARCHAR(45) NOT NULL UNIQUE,
-  Password VARCHAR(45) NULL,
+  Password VARCHAR(255) NULL,
   SchnellAntwort VARCHAR(255) NULL,
   PRIMARY KEY (idUser)
  
@@ -138,13 +138,13 @@ create TRIGGER  Archivieren_Insert after insert on Sessions
     
 
 
-    INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User1','Password1','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
-	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User2','Password2','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
-	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User3','Password3','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
-	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User4','Password4','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
-	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User5','Password5','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
-	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User6','Password6','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
-	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User7','Password7','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
+    INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User1','$2b$10$D4Uchb9gcKJ6WLdU6lw5TOMNPKRCSsvPrKQqBP1EjHywGlQeN/39S','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
+	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User2','$2b$10$FXuFgga.yM31J.Z9eGkOEuMjjRd2NDkX29Z0WN8nDruJ63hCoGKMK','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
+	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User3','$2b$10$k1a1knMr6xpOyVa/OU04P.fySG.vaaPTkAg3X7g8nQfovyslT0e/2','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
+	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User4','$2b$10$tATvyHz8Ypi3I.VRgak7.uStvV.GXp35JFRR/ZQjYTORbnbGdJoFG','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
+	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User5','$2b$10$G6Co478C2Qjdxf04lkAsveNlLedp54hN3n2OR9XkViavma5m.n6gS','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
+	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User6','$2b$10$DRuIpojZ87dYO1Fv3fZH6enDAvHYqJfyskvOJ1HaYOXqm.aA7Q5c.','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
+	INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('User7','$2b$10$.DBIm/bszFnw6PJ8w.svbuiChQseVgTbwwSq0W6A0uuo0zK02Uhni','Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5');
 
 	INSERT INTO SESSIONS(SessionName,SessionHost,SessionThema) VALUES('TestSession1',1,'TestThema1');
 	INSERT INTO SESSIONS(SessionName,SessionHost,SessionThema) VALUES('TestSession2',2,'TestThema2');

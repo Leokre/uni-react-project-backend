@@ -4,24 +4,8 @@ const port = process.env.PORT || 5000
 port2 = 5001
 const cors = require("cors")
 const crypto = require("crypto");
+const bcrypt = require('bcrypt');
 const cookieParser = require("cookie-parser")
-
-/*    TODO
-1. Password encryption
-2. Change JWT key
-3. Implement socket for chat
-
-
-
-
-6. Move defaultPassword to backend
-7. Make /Session/addUser asynchronous
-8. (Change visiblity of session members depending on current User)
-
-*/
-
-
-
 
 
 
@@ -53,14 +37,13 @@ app.use(function(req, res, next) {
 
 
 function authenticateToken(req,res,next){
-  //const authHeader = req.headers['authorization']
+
   if(req == null || req.cookies == undefined) return 
   const token = req.cookies['accessToken']
-  console.log("Token: " + token)
- // if(token == null) return res.sendStatus(401)
+  //console.log("Token: " + token)
+
   if(token == null || req.cookies == undefined) return res.send("NO_TOKEN")
   jwt.verify(token, jwtKey,(err,user)=>{
-    //if(err) return res.sendStatus(403)
     if(err) return res.send("WRONG_TOKEN")
     req.user = user
     next()
@@ -73,47 +56,36 @@ function authenticateToken(req,res,next){
 
 
 
-
 app.get("/checkAuth",authenticateToken,(req,res)=>{
 
 res.json({auth:true,user:req.user})
 })
 
-app.post("/Login", (req,res) => {
+app.post("/Login", async (req,res) => {
   const {username,password} = req.body
+  
   db.query(
     "SELECT * FROM USERS WHERE USERNAME='" + username + "';",
-    (err, result) => {
+    async (err, result) => {
       if(err){
         res.send({err:err});
       }else{
-        if(result.length > 0){
-            
-          if(password === result[0].Password){
-            const user = {name: username, id: result[0].idUser}
-            const accessToken = jwt.sign(user,jwtKey)
-            //res.json({auth:true,user,accessToken: accessToken})
-            res.status(202)
-               .cookie("accessToken", accessToken,{sameSite: 'strict',
-            path: '/',
-            expires: new Date(new Date().getTime() + 100000000 * 1000),
-                  httpOnly: true}).send({auth: true, msg: "CookieInitializing"})
-          }else{
-            res.json({auth: false, msg: "UserNamePasswordError"})
-          }
-          
-        }else{
-          res.json({auth: false, msg: "UserNamePasswordError"})
-        }
-      }
-      
+        if(result.length < 1) res.json({auth: false, msg: "UserNamePasswordError"})
+          const validPassword = await bcrypt.compare(password, result[0].Password);
+
+        if(!validPassword) res.json({auth: false, msg: "UserNamePasswordError"})
+          const user = {name: username, id: result[0].idUser}
+          const accessToken = jwt.sign(user,jwtKey)
+
+          res.status(202)
+              .cookie("accessToken", accessToken,{sameSite: 'strict',
+          path: '/',
+          expires: new Date(new Date().getTime() + 604800 * 1000),
+          httpOnly: true}).send({auth: true, msg: "CookieInitializing"})
+        
+      }   
     }
-
-
-
-
   )
-
 })
 
 app.get("/Logout",(req,res)=>{
@@ -125,11 +97,7 @@ app.get("/Logout",(req,res)=>{
 
 
 const genInvCode = () =>{
-  var key = crypto.randomBytes(32).toString('base64')
-
-  return key
- 
-  
+  return crypto.randomBytes(32).toString('base64')
 }
 
 app.post("/getInvCode",authenticateToken,async(req,res,next)=>{
@@ -173,8 +141,6 @@ app.post("/genInvCode",authenticateToken,async(req,res,next)=>{
     res.status(201).send({msg:"UPDATE_SUCCESS",InvitationCode: invCode})
   })
   .catch(next);
-
-
 })
 
 
@@ -362,11 +328,24 @@ app.get("/Session/Group/getUsers",authenticateToken,async (req,res) =>{
 app.post("/addUser",async (req,res,next) =>{
  // const {username,password} = req.body
   const user = req.body.username
-  var pass = req.body.password
-  
- 
-  
-  
+  const salt = await bcrypt.genSalt(10)
+  var pass = ""
+  var rng = false
+  const clearpass = crypto.randomBytes(32).toString('base64')
+  if(req.body.password){
+    pass  = await bcrypt.hash(req.body.password, salt)
+  }else{
+    pass  = await bcrypt.hash(clearpass, salt)
+    rng = true
+  }
+
+    if(user && rng){
+      db.promise().query("INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('" + user + "','" + pass +"','" + defaultQuickReplies + "')").then(function (result) {
+        res.status(201).send({msg:"USER_CREATED",pass:clearpass})
+      })
+      .catch(next);
+    }
+
     if(user && pass){
         db.promise().query("INSERT INTO USERS(Username,Password,SchnellAntwort) VALUES('" + user + "','" + pass +"','" + defaultQuickReplies + "')").then(function (result) {
           res.status(201).send("USER_CREATED")
@@ -374,12 +353,7 @@ app.post("/addUser",async (req,res,next) =>{
         .catch(next);
 
     }
-    if(user && !pass){
-      db.promise().query("INSERT INTO USERS(Username,defaultQuickReplies) VALUES('" + user + "','" + defaultQuickReplies + "')").then(function (result) {
-        res.status(201).send("USER_CREATED")
-      })
-      .catch(next);
-    }
+    
 
     //res.send("User: " + username + " Password: " + password)
  
