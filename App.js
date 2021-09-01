@@ -19,7 +19,6 @@ app.use(cookieParser())
 const db = require("./Database")
 const jwt = require("jsonwebtoken")
 const jwtKey = "CHANGEMEIMNOTSECURE"
-//const frontEnd = "http://192.168.178.29"
 const frontEnd = "http://localhost:3000"
 const defaultQuickReplies = "Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5"
 var cookie = require('cookie')
