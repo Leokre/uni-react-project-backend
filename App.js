@@ -21,7 +21,6 @@ const jwt = require("jsonwebtoken")
 const jwtKey = "CHANGEMEIMNOTSECURE"
 //const frontEnd = "http://192.168.178.29"
 const frontEnd = "http://localhost:3000"
-const cBackend = "http://localhost:5001"
 const defaultQuickReplies = "Komme 5 Minuten später;Komme 10 Minuten später;SchnellAntwort3;SchnellAntwort4;SchnellAntwort5"
 var cookie = require('cookie')
 var chatRooms =[]
@@ -371,15 +370,11 @@ async function sendMessage(msg,usID,seID,gID){
  var results = await db.promise().query("SELECT Berechtigung from GroupUserSession WHERE UserID= " + userID + " AND SessionID= " + sessID + " AND (GruppenID= " + groupID + " OR Berechtigung > 0) ;")
  if(!results[0][0])return"ERR_USER_NOT_IN_SESSION/GROUP"
 
-
  if(!message)return"ERR_NO_MESSAGE"
-  
-  
-       
+
         db.promise().query("INSERT INTO Messages(MessTimestamp,idUser,SessionID,GruppenID,Message) VALUES('" + now + "', " + userID + ", " + sessID + ", " + groupID + ", '" + message + "')").then(function (result) {
           return"MESSAGE_SENT"
-        })
-        
+        }) 
 }
 
 app.post("/Session/sendMessage",authenticateToken,async (req,res,next) =>{
@@ -545,16 +540,7 @@ chatServer.listen(port2,()=>{
 
 
 
-function constantTimeEquals(a, b) {
-    if (a.length !== b.length) {
-        return false;
-    }
-    let diff = 0;
-    for (let i = 0; diff < a.length; i++) {
-        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-    }
-    return diff === 0;
-}
+
 
 async function addUser(socket,userID,sessID,groupID){
   console.log("addUser triggered")
@@ -570,10 +556,6 @@ async function addUser(socket,userID,sessID,groupID){
     return socket.currentRoom
 
   })
-  
- 
-
-
 }
 
 
@@ -594,7 +576,6 @@ app.post("/Session/setUserGroups",authenticateToken,async(req,res,next)=>{
       
   })
   .catch(next);
-
   groups.forEach(element =>{
     console.log("element:")
     console.log(element)
@@ -602,29 +583,16 @@ app.post("/Session/setUserGroups",authenticateToken,async(req,res,next)=>{
       console.log("setusergorupseee")
       console.log(result[0][0].Berechtigung)
       role=result[0][0].Berechtigung
-
-
-      db.promise().query("INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES (" + element + "," + sessionID + "," + userID + "," + role + ")").then(function (result) {
-      
+      db.promise().query("INSERT INTO GroupUserSession(GruppenID,SessionID,UserID,Berechtigung) VALUES (" + element + "," + sessionID + "," + userID + "," + role + ")").then(function (result) {  
       })
       .catch(next);
     })
     .catch(next);
-
-
-    
   })
-  
-
-
-
 })
 
 io.on('connection',function (socket) {
-  // Die variable "socket" repräsentiert die aktuelle Web Sockets
-  // Verbindung zu jeweiligen Browser client.
     console.log("User connecting")
-  // Kennzeichen, ob der Benutzer sich angemeldet hat 
 
   if(!socket.handshake.headers.cookie) return -1
   var cookies = cookie.parse(socket.handshake.headers.cookie);
@@ -632,11 +600,10 @@ io.on('connection',function (socket) {
   var token = cookies.accessToken
 
   jwt.verify(token, jwtKey,(err,user)=>{
-    //if(err) return res.sendStatus(403)
     if(err) return res.send("WRONG_TOKEN")
     currUser = user
   })
-  if(currUser == undefined) console.log("NO_TOKEN")
+  if(currUser == undefined) return res.send("NO_TOKEN")
 
 
   var addedUser = false;
@@ -644,24 +611,18 @@ io.on('connection',function (socket) {
   socket.userID = currUser.id;
   addedUser = true;
       
-  // Dem Client wird die "login"-Nachricht geschickt, damit er weiß,
-  // dass er erfolgreich angemeldet wurde.
+
   socket.emit('login');
   console.log("User connected")    
-  // Alle Clients informieren, dass ein neuer Benutzer da ist.
-  //socket.broadcast.emit('user joined', socket.username);
  
+
   
- 
-
-
-  // Funktion, die darauf reagiert, wenn ein Benutzer eine Nachricht schickt
   socket.on('newMessage', function (data) {
     const username = socket.username
     const userID = socket.userID
     const sessionID = socket.currentRoom.split('GG')[0]
     const groupID = socket.currentRoom.split('GG')[1]
-  // Sende die Nachricht an alle Clients
+  
   io.to(socket.currentRoom).emit('newMessage', {
     username: username,
     message: data.msg,
@@ -677,7 +638,7 @@ io.on('connection',function (socket) {
     const userID = socket.userID
     const sessionID = socket.currentRoom.split('GG')[0]
     const groupID = socket.currentRoom.split('GG')[1]
-  // Sende die Nachricht an alle Clients
+  
 
   var rooms = io.sockets.adapter.sids[socket.id]; for(var room in rooms) 
   {
@@ -714,12 +675,10 @@ io.on('connection',function (socket) {
 
   
   
-  // Funktion, die darauf reagiert, wenn sich ein Benutzer abmeldet.
-  // Benutzer müssen sich nicht explizit abmelden. "disconnect"
-  // tritt auch auf wenn der Benutzer den Client einfach schließt.
+  
   socket.on('disconnect', function () {
   if (addedUser) {
-    // Alle über den Abgang des Benutzers informieren
+    
     socket.broadcast.emit('user left', socket.username);
   }
   });
